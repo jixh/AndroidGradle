@@ -1,0 +1,26 @@
+// 定义全局变量
+ext.appVersionCode = 1
+ext.appVersionName = "1.0.0.0"
+ext.appReleaseDir = "D:\\dir"
+
+// 加载版本信息配置文件方法
+def loadProperties() {
+    def proFile = file("../local.properties")
+    Properties pro = new Properties()
+    proFile.withInputStream { stream->
+        pro.load(stream)
+    }
+    appReleaseDir = pro.appReleaseDir
+    appVersionCode = Integer.valueOf(pro.appVersionCode)
+    appVersionName = pro.appVersionName
+}
+
+//加载版本信息
+loadProperties()
+
+//使用
+ext {
+    releaseDir = appReleaseDir
+    versionName = appVersionName
+    versionCode = appVersionCode
+}

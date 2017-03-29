@@ -1,0 +1,224 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        applicationId "com.jktaihe.androidgradle"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders =
+                [APP_VALUE: "testVaue",
+                 VERSION  : "" + versionCode,
+                 APP_NAME : "AndroidGradle"
+                ]
+
+        buildConfigField("String", "API_HOST", "\"http://google.com\"")
+
+//原生
+        ndk {
+//            moduleName "MPChartLib"
+            abiFilters "armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+
+        multiDexEnabled true
+    }
+
+    dexOptions {
+//        incremental = true;// remove this as2.2 do not need to to be setted
+        preDexLibraries = true
+//        javaMaxHeapSize "4g"
+        maxProcessCount 8
+    }
+
+    lintOptions {
+        disable 'InvalidPackage'
+        abortOnError false
+        absolutePaths false
+        ignoreWarnings true
+        disable 'MissingTranslation'
+        lintConfig file('../lint.xml')
+    }
+
+    signingConfigs {
+        debug {
+            // No debug config
+        }
+
+        release {
+            try {
+                storeFile file("../key.jks")
+                storePassword KEYSTORE_PASSWORD
+                keyAlias "alias"
+                keyPassword KEY_PASSWORD
+            }
+            catch (ex) {
+                throw new InvalidUserDataException("You should define KEYSTORE_PASSWORD and KEY_PASSWORD in gradle.properties.")
+            }
+        }
+    }
+
+    productFlavors {
+
+//        dev{
+//            minSdkVersion 21       // To avoid using legacy multidex, set minSdkVersion to 21 or higher.
+//            versionNameSuffix "-dev"
+//            applicationIdSuffix '.dev'
+//
+//            resConfigs "xhdpi"//,"zh"
+//        }
+
+//        prod {
+//            minSdkVersion 14
+//        }
+
+        TestInner {//测试库内网
+            versionNameSuffix "-" + name
+            applicationIdSuffix '.testinner'
+            buildConfigField("String", "API_HOST", "\"http://192.168.3.19:8088\"")
+
+        }
+
+        TestOutter {//测试库外网
+            versionNameSuffix "-" + name
+            applicationIdSuffix '.testoutter'
+            buildConfigField("String", "API_HOST", "\"http://60.190.233.23:8080\"")
+
+        }
+
+        PreProd {//预发布版本
+            versionNameSuffix "-" + name
+            applicationIdSuffix '.preprod'
+            minSdkVersion rootProject.ext.minSdkVersion
+            targetSdkVersion rootProject.ext.targetSdkVersion
+            buildConfigField("String", "API_HOST", "\"http://122.225.89.12:8780\"")
+        }
+
+        prod {//正式版
+            minSdkVersion rootProject.ext.minSdkVersion
+            targetSdkVersion rootProject.ext.targetSdkVersion
+            buildConfigField("String", "API_HOST", "\"http://mobi.vongihealth.com:85\"")
+        }
+
+//        tencent {}
+//        wandoujia {}
+//        _360 {}
+//        baidu {}
+//        xiaomi {}
+//        taobao {}
+    }
+
+    productFlavors.all { flavor ->
+        flavor.manifestPlaceholders = [UMENG_CHANNEL_VALUE: name, APP_NAME: "AndroidGradle".concat(name)]
+    }
+
+    buildTypes {
+
+        debug {
+            buildConfigField "boolean", "LOG_DEBUG", "true"
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-DEBUG'
+
+            minifyEnabled false
+            zipAlignEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+        }
+
+        release {
+            buildConfigField "boolean", "LOG_DEBUG", "false"
+
+            minifyEnabled false
+            zipAlignEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+
+        beta.initWith(buildTypes.release)
+        beta {//编译时可配置
+            buildConfigField "boolean", "LOG_DEBUG", "true"
+            applicationIdSuffix '.beta'
+            versionNameSuffix '-BETA'
+        }
+
+    }
+
+    applicationVariants.all {
+        variant ->
+            variant.outputs.each {
+                output ->
+                    def outputFile = output.outputFile
+                    if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                        renameOutputFile(variant, output);
+                    }
+            }
+    }
+
+    // 打包排除以下文件，屏蔽因as自身bug，在没有重复引用jar时，提示jar重复引用的问题
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES.txt'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/notice.txt'
+        exclude 'META-INF/license.txt'
+        exclude 'META-INF/dependencies.txt'
+        exclude 'META-INF/LGPL2.1'
+    }
+
+//    compileOptions {
+//        sourceCompatibility JavaVersion.VERSION_1_8
+//        targetCompatibility JavaVersion.VERSION_1_8
+//    }
+}
+
+
+def releaseTime() {
+    return new Date().format("yyyyMMdd", TimeZone.getTimeZone("Asia/Shanghai"))
+}
+
+def renameOutputFile(variant, output) {
+
+    def appName = "AG";
+    def apk = output.outputFile;
+    def newName = "";
+
+    def channelName = variant.productFlavors[0].name;
+    def versionName = android.defaultConfig.versionName;
+    def versionCode = android.defaultConfig.versionCode;
+    def releaseTime = releaseTime();
+
+    newName = appName + "_" + channelName + "_" + releaseTime;
+
+    if (variant.buildType.name.equals("debug")) {
+        newName += "_debug_"
+    } else if (variant.buildType.name.equals("beta")) {
+        newName += "_beta_"
+    } else if (variant.buildType.name.equals("release")) {
+        newName += "_release_"
+    }
+    newName += versionName + "_" + versionCode + ".apk";
+
+    output.outputFile = new File(apk.parentFile, newName);
+}
+
+dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    compile project(':configlibrary')
+    compile 'com.android.support:appcompat-v7:25.2.0'
+    compile 'com.android.support.constraint:constraint-layout:1.0.2'
+    compile 'com.android.support:design:25.2.0'
+    testCompile 'junit:junit:4.12'
+    betaCompile 'com.android.support:appcompat-v7:25.2.0'
+}
